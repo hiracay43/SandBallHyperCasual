@@ -1,52 +1,136 @@
+using OlcayKalyoncuoglu;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using Vector2f = UnityEngine.Vector2;
+using Vector2i = ClipperLib.IntPoint;
+using int64 = System.Int64;
+using UnityEngine.UIElements;
 
-    public void Kirpma (IClip clip)
+public class AnaTerrain : MonoBehaviour
+{
+    public Material _Material;
+
+    [Range(.5f, 2f)]
+    public float _BlokBoyutu;
+
+    Int64 _BlokBoyutununOlcegi;
+
+    [Range(0f, 5f)]
+    public float DelikPuruzOrani;
+
+    [Range(1, 100)]
+    public int TerrainBoyutX = 10;
+
+    [Range(1, 100)]
+    public int TerrainBoyutY = 10;
+
+    public float _Derinlik = 1f;
+
+    float Genislik;
+    float Yukselik;
+
+    YokEdilebilirBlok[] _Bloklar;
+
+    private void Awake()
     {
+        BlokYonetimi.Oran =(int64)(DelikPuruzOrani / 100f * _BlokBoyutu * VectorEx.float2int64);
 
-        BlokYonetimi.Oran = (int64)(DelikPuruzOrani / 100f * _BlokBoyutu * VectorEx.float2int64);
+        Genislik = _BlokBoyutu * TerrainBoyutX;
+        Yukselik = _BlokBoyutu * TerrainBoyutY;
+        _BlokBoyutununOlcegi = (int64)(_BlokBoyutu * VectorEx.float2int64);
 
-        List<Vector2i> clipVertices = clip.VerteksleriGetir();
+        Kurulum();
+    }
 
-        ClipBounds bounds = clip.SinirlariGetir();
-
-        int x1 = Mathf.Max(0, (int)(bounds.AltNokta.x / _BlokBoyutu));
-        if (x1 > TerrainBoyutX - 1) return;
-
-        int y1 = Mathf.Max(0, (int)(bounds.AltNokta.y / _BlokBoyutu));
-        if (y1 > TerrainBoyutY - 1) return;
-
-        int x2 = Mathf.Min(TerrainBoyutX - 1, (int)(bounds.UstNokta.x / _BlokBoyutu));
-        if (x2 < 0) return;
-
-        int y2 = Mathf.Min(TerrainBoyutY - 1, (int)(bounds.UstNokta.y / _BlokBoyutu));
-        if (y2 < 0) return;
+    void Kurulum() // Initialize
+    {
+        _Bloklar = new YokEdilebilirBlok[TerrainBoyutX * TerrainBoyutY];
 
 
-        for (int x = x1; x <= x2; x++)
+        for (int x = 0; x < TerrainBoyutX; x++)
         {
-
-            for (int y = y1; y <= y2; y++)
+            for (int y = 0; y < TerrainBoyutY; y++)
             {
-                if (clip.BlokKesismesiniKontrolEt(new Vector2f((x+ .5f) * _BlokBoyutu, (y + .5f) * _BlokBoyutu),_BlokBoyutu))
+                List<List<Vector2i>> poligonlar = new();
+                List<Vector2i> verteksler = new()
                 {
+                    new Vector2i { x = x * _BlokBoyutununOlcegi, y = (y + 1)* _BlokBoyutununOlcegi},
+                    new Vector2i { x = x * _BlokBoyutununOlcegi, y = y * _BlokBoyutununOlcegi},
+                    new Vector2i { x = (x + 1 ) * _BlokBoyutununOlcegi, y = y * _BlokBoyutununOlcegi},
+                    new Vector2i { x = (x + 1 ) * _BlokBoyutununOlcegi, y = (y + 1)* _BlokBoyutununOlcegi},
+                };
 
-                    YokEdilebilirBlok Block = _Bloklar[x + TerrainBoyutX * y];
+                poligonlar.Add(verteksler);
 
-                    List<List<Vector2i>> Pozisyon = new();
+                int idx = x + TerrainBoyutX * y;
 
-                    Clipper clipper = new();
+                YokEdilebilirBlok block = BlokOlustur();
+                _Bloklar[idx] = block;
 
-                    clipper.AddPolygons(Block._Polygons, PolyType.ptSubject);
-                    clipper.AddPolygon(clipVertices, PolyType.ptClip);
-                    clipper.Execute(ClipType.ctDifference, Pozisyon, PolyFillType.pftNonZero, PolyFillType.pftNonZero);
+                BlokSinirlariniGuncelle(x, y);
 
-                    BlokSinirlariniGuncelle(x, y);
-
-                    Block.GeometriyiGuncelle(Pozisyon, Genislik, Yukseklik, _Derinlik);
-
-                }
-
-                
+                block.GeometriyiGuncelle(poligonlar, Genislik, Yukselik, _Derinlik);
             }
         }
+
+    }
+    void Start()
+    {
+        
+    }
+
+    // Update is called once per frame
+    void Update()
+    {
+        
+    }
+
+    void BlokSinirlariniGuncelle(int x , int y)
+    {
+        int lx = x;
+        int ly = y;
+        int ux = x+1;
+        int uy = y+1;
+
+        if (lx == 0) lx = -1;
+        if (ly == 0) ly = -1;
+        if (ux == TerrainBoyutX) ux =  TerrainBoyutX +1;
+        if (uy == TerrainBoyutY) uy = TerrainBoyutY + 1;
+
+
+        BlokYonetimi.MevcutAltNokta = new Vector2i
+        {
+            x = lx * _BlokBoyutununOlcegi,
+            y = ly * _BlokBoyutununOlcegi
+
+        };
+        BlokYonetimi.MevcutUstNokta = new Vector2i
+        {
+            x = ux * _BlokBoyutununOlcegi,
+            y = uy * _BlokBoyutununOlcegi
+
+        };
+    }
+
+    YokEdilebilirBlok BlokOlustur()
+    {
+
+        GameObject OlusanObje = new()
+        {
+            name = "YokedilebilirBlok"
+        };
+        OlusanObje.transform.SetParent(transform);
+        OlusanObje.transform.localPosition = Vector3.zero;
+
+        YokEdilebilirBlok BlokKopya = OlusanObje.AddComponent<YokEdilebilirBlok>();
+        BlokKopya.MateryalTanimla(_Material);
+
+        return BlokKopya;
+
+
+        // BURADA OBJE HAVUZU YAPACAÐIZ
+
     }
 }
